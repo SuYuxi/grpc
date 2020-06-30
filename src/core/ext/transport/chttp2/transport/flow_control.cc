@@ -111,7 +111,7 @@ void FlowControlTrace::Finish() {
     saw_str = gpr_leftpad("", ' ', kTracePadding);
   }
   gpr_log(GPR_DEBUG,
-          "%p[%u][%s] | %s | trw:%s, ttw:%s, taw:%s, srw:%s, slw:%s, saw:%s",
+          "%p[%u][%s] | %s | trw:%s, tlw:%s, taw:%s, srw:%s, slw:%s, saw:%s",
           tfc_, sfc_ != nullptr ? sfc_->stream()->id : 0,
           tfc_->transport()->is_client ? "cli" : "svr", reason_, trw_str,
           tlw_str, taw_str, srw_str, slw_str, saw_str);
@@ -190,7 +190,7 @@ TransportFlowControl::TransportFlowControl(const grpc_chttp2_transport* t,
 uint32_t TransportFlowControl::MaybeSendUpdate(bool writing_anyway) {
   FlowControlTrace trace("t updt sent", this, nullptr);
   const uint32_t target_announced_window =
-      static_cast<const uint32_t>(target_window());
+      static_cast<uint32_t>(target_window());
   if ((writing_anyway || announced_window_ <= target_announced_window / 2) &&
       announced_window_ != target_announced_window) {
     const uint32_t announce = static_cast<uint32_t> GPR_CLAMP(
@@ -284,8 +284,8 @@ void StreamFlowControl::IncomingByteStreamUpdate(size_t max_size_hint,
                                  [GRPC_CHTTP2_SETTINGS_INITIAL_WINDOW_SIZE];
 
   /* clamp max recv hint to an allowable size */
-  if (max_size_hint >= UINT32_MAX - sent_init_window) {
-    max_recv_bytes = UINT32_MAX - sent_init_window;
+  if (max_size_hint >= kMaxWindowUpdateSize - sent_init_window) {
+    max_recv_bytes = kMaxWindowUpdateSize - sent_init_window;
   } else {
     max_recv_bytes = static_cast<uint32_t>(max_size_hint);
   }
@@ -298,7 +298,7 @@ void StreamFlowControl::IncomingByteStreamUpdate(size_t max_size_hint,
   }
 
   /* add some small lookahead to keep pipelines flowing */
-  GPR_ASSERT(max_recv_bytes <= UINT32_MAX - sent_init_window);
+  GPR_DEBUG_ASSERT(max_recv_bytes <= kMaxWindowUpdateSize - sent_init_window);
   if (local_window_delta_ < max_recv_bytes) {
     uint32_t add_max_recv_bytes =
         static_cast<uint32_t>(max_recv_bytes - local_window_delta_);

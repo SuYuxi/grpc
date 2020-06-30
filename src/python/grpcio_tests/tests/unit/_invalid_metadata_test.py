@@ -36,17 +36,15 @@ def _unary_unary_multi_callable(channel):
 
 
 def _unary_stream_multi_callable(channel):
-    return channel.unary_stream(
-        _UNARY_STREAM,
-        request_serializer=_SERIALIZE_REQUEST,
-        response_deserializer=_DESERIALIZE_RESPONSE)
+    return channel.unary_stream(_UNARY_STREAM,
+                                request_serializer=_SERIALIZE_REQUEST,
+                                response_deserializer=_DESERIALIZE_RESPONSE)
 
 
 def _stream_unary_multi_callable(channel):
-    return channel.stream_unary(
-        _STREAM_UNARY,
-        request_serializer=_SERIALIZE_REQUEST,
-        response_deserializer=_DESERIALIZE_RESPONSE)
+    return channel.stream_unary(_STREAM_UNARY,
+                                request_serializer=_SERIALIZE_REQUEST,
+                                response_deserializer=_DESERIALIZE_RESPONSE)
 
 
 def _stream_stream_multi_callable(channel):
@@ -61,6 +59,9 @@ class InvalidMetadataTest(unittest.TestCase):
         self._unary_stream = _unary_stream_multi_callable(self._channel)
         self._stream_unary = _stream_unary_multi_callable(self._channel)
         self._stream_stream = _stream_stream_multi_callable(self._channel)
+
+    def tearDown(self):
+        self._channel.close()
 
     def testUnaryRequestBlockingUnaryResponse(self):
         request = b'\x07\x08'
@@ -129,6 +130,9 @@ class InvalidMetadataTest(unittest.TestCase):
         with self.assertRaises(ValueError) as exception_context:
             self._stream_stream(request_iterator, metadata=metadata)
         self.assertIn(expected_error_details, str(exception_context.exception))
+
+    def testInvalidMetadata(self):
+        self.assertRaises(TypeError, self._unary_unary, b'', metadata=42)
 
 
 if __name__ == '__main__':

@@ -103,20 +103,20 @@ DEFINE_bool(use_alts, false,
             "Whether to use alts. Enable alts will disable tls.");
 DEFINE_bool(use_tls, false, "Whether to use tls.");
 DEFINE_bool(use_test_ca, false, "False to use SSL roots for google");
-DEFINE_string(server_host_override, "foo.test.google.fr",
+DEFINE_string(server_host_override, "",
               "Override the server host which is sent in HTTP header");
 
 using grpc::testing::ALTS;
 using grpc::testing::INSECURE;
+using grpc::testing::kTestCaseList;
 using grpc::testing::MetricsService;
 using grpc::testing::MetricsServiceImpl;
 using grpc::testing::StressTestInteropClient;
-using grpc::testing::TLS;
 using grpc::testing::TestCaseType;
+using grpc::testing::TLS;
+using grpc::testing::transport_security;
 using grpc::testing::UNKNOWN_TEST;
 using grpc::testing::WeightedRandomTestSelector;
-using grpc::testing::kTestCaseList;
-using grpc::testing::transport_security;
 
 static int log_level = GPR_LOG_SEVERITY_DEBUG;
 

@@ -16,6 +16,8 @@
 # This script is invoked by run_tests.py to accommodate "test under docker"
 # scenario. You should never need to call this script on your own.
 
+# shellcheck disable=SC2103
+
 set -ex
 
 cd "$(dirname "$0")/../../.."
@@ -28,7 +30,7 @@ cd -
 # DOCKERHUB_ORGANIZATION - If set, pull a prebuilt image from given dockerhub org.
 
 # Use image name based on Dockerfile location checksum
-DOCKER_IMAGE_NAME=$(basename "$DOCKERFILE_DIR")_$(sha1sum "$DOCKERFILE_DIR/Dockerfile" | cut -f1 -d\ )
+DOCKER_IMAGE_NAME=$(basename "$DOCKERFILE_DIR"):$(sha1sum "$DOCKERFILE_DIR/Dockerfile" | cut -f1 -d\ )
 
 if [ "$DOCKERHUB_ORGANIZATION" != "" ]
 then
@@ -48,7 +50,7 @@ docker_instance_git_root=/var/local/jenkins/grpc
 # Run tests inside docker
 DOCKER_EXIT_CODE=0
 # TODO: silence complaint about $TTY_FLAG expansion in some other way
-# shellcheck disable=SC2086
+# shellcheck disable=SC2086,SC2154
 docker run \
   --cap-add SYS_PTRACE \
   -e "RUN_TESTS_COMMAND=$RUN_TESTS_COMMAND" \

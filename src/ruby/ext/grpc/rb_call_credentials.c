@@ -56,6 +56,28 @@ typedef struct callback_params {
 
 static VALUE grpc_rb_call_credentials_callback(VALUE callback_args) {
   VALUE result = rb_hash_new();
+  if (gpr_should_log(GPR_LOG_SEVERITY_DEBUG)) {
+    VALUE callback_args_as_str =
+        rb_funcall(callback_args, rb_intern("to_s"), 0);
+    VALUE callback_source_info = rb_funcall(rb_ary_entry(callback_args, 0),
+                                            rb_intern("source_location"), 0);
+    if (callback_source_info != Qnil) {
+      VALUE source_filename = rb_ary_entry(callback_source_info, 0);
+      VALUE source_line_number = rb_funcall(
+          rb_ary_entry(callback_source_info, 1), rb_intern("to_s"), 0);
+      gpr_log(GPR_DEBUG,
+              "GRPC_RUBY: grpc_rb_call_credentials invoking user callback "
+              "(source_filename:%s line_number:%s) with arguments:%s",
+              StringValueCStr(source_filename),
+              StringValueCStr(source_line_number),
+              StringValueCStr(callback_args_as_str));
+    } else {
+      gpr_log(GPR_DEBUG,
+              "GRPC_RUBY: grpc_rb_call_credentials invoking user callback "
+              "(failed to get source filename ane line) with arguments:%s",
+              StringValueCStr(callback_args_as_str));
+    }
+  }
   VALUE metadata = rb_funcall(rb_ary_entry(callback_args, 0), rb_intern("call"),
                               1, rb_ary_entry(callback_args, 1));
   rb_hash_aset(result, rb_str_new2("metadata"), metadata);
@@ -109,6 +131,7 @@ static void grpc_rb_call_credentials_callback_with_gil(void* param) {
   params->callback(params->user_data, md_ary.metadata, md_ary.count, status,
                    error_details);
   grpc_rb_metadata_array_destroy_including_entries(&md_ary);
+  grpc_auth_metadata_context_reset(&params->context);
   gpr_free(params);
 }
 
@@ -118,9 +141,9 @@ static int grpc_rb_call_credentials_plugin_get_metadata(
     grpc_metadata creds_md[GRPC_METADATA_CREDENTIALS_PLUGIN_SYNC_MAX],
     size_t* num_creds_md, grpc_status_code* status,
     const char** error_details) {
-  callback_params* params = gpr_malloc(sizeof(callback_params));
+  callback_params* params = gpr_zalloc(sizeof(callback_params));
   params->get_metadata = (VALUE)state;
-  params->context = context;
+  grpc_auth_metadata_context_copy(&context, &params->context);
   params->user_data = user_data;
   params->callback = cb;
 
@@ -134,8 +157,7 @@ static void grpc_rb_call_credentials_plugin_destroy(void* state) {
   // Not sure what needs to be done here
 }
 
-/* Destroys the credentials instances. */
-static void grpc_rb_call_credentials_free(void* p) {
+static void grpc_rb_call_credentials_free_internal(void* p) {
   grpc_rb_call_credentials* wrapper;
   if (p == NULL) {
     return;
@@ -143,8 +165,13 @@ static void grpc_rb_call_credentials_free(void* p) {
   wrapper = (grpc_rb_call_credentials*)p;
   grpc_call_credentials_release(wrapper->wrapped);
   wrapper->wrapped = NULL;
-
   xfree(p);
+}
+
+/* Destroys the credentials instances. */
+static void grpc_rb_call_credentials_free(void* p) {
+  grpc_rb_call_credentials_free_internal(p);
+  grpc_ruby_shutdown();
 }
 
 /* Protects the mark object from GC */
@@ -175,6 +202,7 @@ static rb_data_type_t grpc_rb_call_credentials_data_type = {
 /* Allocates CallCredentials instances.
    Provides safe initial defaults for the instance fields. */
 static VALUE grpc_rb_call_credentials_alloc(VALUE cls) {
+  grpc_ruby_init();
   grpc_rb_call_credentials* wrapper = ALLOC(grpc_rb_call_credentials);
   wrapper->wrapped = NULL;
   wrapper->mark = Qnil;
@@ -212,8 +240,6 @@ static VALUE grpc_rb_call_credentials_init(VALUE self, VALUE proc) {
   grpc_call_credentials* creds = NULL;
   grpc_metadata_credentials_plugin plugin;
 
-  grpc_ruby_once_init();
-
   TypedData_Get_Struct(self, grpc_rb_call_credentials,
                        &grpc_rb_call_credentials_data_type, wrapper);
 
@@ -226,7 +252,10 @@ static VALUE grpc_rb_call_credentials_init(VALUE self, VALUE proc) {
   plugin.state = (void*)proc;
   plugin.type = "";
 
-  creds = grpc_metadata_credentials_create_from_plugin(plugin, NULL);
+  // TODO(yihuazhang): Expose min_security_level via the Ruby API so that
+  // applications can decide what minimum security level their plugins require.
+  creds = grpc_metadata_credentials_create_from_plugin(
+      plugin, GRPC_PRIVACY_AND_INTEGRITY, NULL);
   if (creds == NULL) {
     rb_raise(rb_eRuntimeError, "could not create a credentials, not sure why");
     return Qnil;

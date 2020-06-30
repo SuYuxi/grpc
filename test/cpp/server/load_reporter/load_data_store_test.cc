@@ -33,11 +33,11 @@ namespace testing {
 namespace {
 
 using ::grpc::load_reporter::CallMetricValue;
+using ::grpc::load_reporter::kInvalidLbId;
 using ::grpc::load_reporter::LoadDataStore;
 using ::grpc::load_reporter::LoadRecordKey;
 using ::grpc::load_reporter::LoadRecordValue;
 using ::grpc::load_reporter::PerBalancerStore;
-using ::grpc::load_reporter::kInvalidLbId;
 
 class LoadDataStoreTest : public ::testing::Test {
  public:
@@ -475,7 +475,7 @@ TEST_F(PerBalancerStoreTest, DataAggregation) {
 }  // namespace grpc
 
 int main(int argc, char** argv) {
-  grpc_test_init(argc, argv);
+  grpc::testing::TestEnvironment env(argc, argv);
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }
